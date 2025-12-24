@@ -134,7 +134,7 @@ export default function ProfilePage() {
       const filePath = `avatars/${fileName}`;
 
       // 기존 프로필 사진이 있으면 삭제
-      if (user.avatar_url && user.avatar_url.includes("supabase")) {
+      if (user && user.avatar_url && user.avatar_url.includes("supabase")) {
         const oldFileName = user.avatar_url.split("/").pop();
         if (oldFileName) {
           await supabase.storage.from("avatars").remove([oldFileName]);
@@ -309,10 +309,10 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-6">
                   <Avatar className="size-24">
                     {avatarPreview ? (
-                      <AvatarImage src={avatarPreview} alt={user.name} />
+                      <AvatarImage src={avatarPreview} alt={user?.name || ""} />
                     ) : (
                       <AvatarFallback className="text-2xl">
-                        {nameValue?.charAt(0).toUpperCase() || user.name.charAt(0).toUpperCase()}
+                        {nameValue?.charAt(0).toUpperCase() || user?.name?.charAt(0).toUpperCase() || "U"}
                       </AvatarFallback>
                     )}
                   </Avatar>
@@ -371,7 +371,7 @@ export default function ProfilePage() {
                 <FieldContent>
                   <Input
                     type="email"
-                    value={user.email}
+                    value={user?.email || ""}
                     disabled
                     className="bg-muted"
                   />
