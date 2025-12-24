@@ -171,13 +171,23 @@ CREATE POLICY "Users can delete own todos"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.users (id, email, name)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1))
-  );
+  -- 이미 프로필이 존재하는지 확인 (중복 방지)
+  IF NOT EXISTS (SELECT 1 FROM public.users WHERE id = NEW.id) THEN
+    INSERT INTO public.users (id, email, name)
+    VALUES (
+      NEW.id,
+      COALESCE(NEW.email, ''),
+      COALESCE(NEW.raw_user_meta_data->>'name', split_part(COALESCE(NEW.email, ''), '@', 1))
+    )
+    ON CONFLICT (id) DO NOTHING; -- 중복 시 무시
+  END IF;
   RETURN NEW;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- 에러 발생 시 로그 기록 (Supabase 로그에서 확인 가능)
+    RAISE WARNING 'Error in handle_new_user trigger: %', SQLERRM;
+    -- 트리거 에러가 회원가입을 막지 않도록 NEW 반환
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

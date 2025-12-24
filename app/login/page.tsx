@@ -98,6 +98,11 @@ export default function LoginPage() {
       });
 
       if (error) {
+        console.error("Login error details:", {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+        });
         setErrorMessage(getErrorMessage(error));
         return;
       }
@@ -107,9 +112,14 @@ export default function LoginPage() {
         router.push("/");
         router.refresh();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      setErrorMessage(getErrorMessage(error));
+      // 환경 변수 관련 에러인지 확인
+      if (error?.message?.includes("Missing Supabase environment variables")) {
+        setErrorMessage("서버 설정 오류가 발생했습니다. 관리자에게 문의해주세요.");
+      } else {
+        setErrorMessage(getErrorMessage(error));
+      }
     } finally {
       setIsLoading(false);
     }

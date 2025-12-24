@@ -72,7 +72,7 @@ export default function SignupPage() {
     };
   }, [router]);
 
-  const getErrorMessage = (error: any): string => {
+  const getErrorMessage = (error: { message?: string } | null | undefined): string => {
     if (error?.message) {
       if (error.message.includes("already registered")) {
         return "이미 등록된 이메일입니다.";
@@ -110,29 +110,76 @@ export default function SignupPage() {
         },
       });
 
+      // 에러 상세 로깅
       if (error) {
+        console.error("❌ Signup Error:", {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+          cause: error.cause,
+          toString: error.toString(),
+          fullError: error,
+        });
+
+        // 이메일 발송 실패 에러인지 확인
+        if (
+          error.message?.includes("Error sending confirmation email") ||
+          error.message?.includes("sending confirmation email") ||
+          error.message?.toLowerCase().includes("email")
+        ) {
+          const userId = authData?.user ? (authData.user as { id: string }).id : null;
+          console.error("📧 이메일 발송 실패 감지:", {
+            errorMessage: error.message,
+            errorStatus: error.status,
+            userCreated: !!authData?.user,
+            userId: userId,
+            email: data.email,
+          });
+        }
+
         setErrorMessage(getErrorMessage(error));
         return;
       }
 
       // 회원가입 성공
       if (authData.user) {
+        console.log("✅ 회원가입 성공:", {
+          userId: authData.user.id,
+          email: authData.user.email,
+          emailConfirmed: authData.user.email_confirmed_at,
+          confirmationSent: authData.user.confirmation_sent_at,
+          hasSession: !!authData.session,
+        });
+
         // 이메일 확인이 필요한 경우
         if (!authData.session) {
+          if (authData.user.confirmation_sent_at) {
+            console.log("📧 이메일 인증 메일 발송됨:", authData.user.confirmation_sent_at);
+          } else {
+            console.warn("⚠️ 이메일 인증 메일이 발송되지 않음 (confirmation_sent_at이 null)");
+          }
           setSuccessMessage(
             "회원가입이 완료되었습니다. 이메일을 확인하여 계정을 활성화해주세요."
           );
         } else {
           // 이메일 확인이 필요 없는 경우 (설정에 따라)
+          console.log("✅ 이메일 인증 없이 로그인됨");
           setSuccessMessage("회원가입이 완료되었습니다. 메인 페이지로 이동합니다.");
           setTimeout(() => {
             router.push("/");
           }, 2000);
         }
+      } else {
+        console.error("❌ 사용자 데이터가 반환되지 않음");
       }
     } catch (error) {
       console.error("Signup error:", error);
-      setErrorMessage(getErrorMessage(error));
+      const errorObj = error instanceof Error 
+        ? { message: error.message } 
+        : error && typeof error === 'object' && 'message' in error
+        ? { message: String(error.message) }
+        : null;
+      setErrorMessage(getErrorMessage(errorObj));
     } finally {
       setIsLoading(false);
     }
