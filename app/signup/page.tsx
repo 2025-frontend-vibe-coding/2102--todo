@@ -96,46 +96,67 @@ export default function SignupPage() {
     try {
       const supabase = createClient();
 
-      // 이메일에서 이름 추출 (이메일의 @ 앞부분)
-      const name = data.email.split("@")[0];
-
       const { data: authData, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
-        options: {
-          data: {
-            name: name,
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+        // emailRedirectTo: `${window.location.origin}/auth/callback`,
       });
 
       // 에러 상세 로깅
       if (error) {
-        console.error("❌ Signup Error:", {
+        // 에러 객체의 모든 속성 확인
+        const errorDetails: Record<string, unknown> = {
           message: error.message,
           status: error.status,
           name: error.name,
           cause: error.cause,
           toString: error.toString(),
-          fullError: error,
-        });
+        };
 
-        // 이메일 발송 실패 에러인지 확인
-        if (
-          error.message?.includes("Error sending confirmation email") ||
-          error.message?.includes("sending confirmation email") ||
-          error.message?.toLowerCase().includes("email")
-        ) {
-          const userId = authData?.user ? (authData.user as { id: string }).id : null;
-          console.error("📧 이메일 발송 실패 감지:", {
-            errorMessage: error.message,
-            errorStatus: error.status,
-            userCreated: !!authData?.user,
-            userId: userId,
-            email: data.email,
+        // 에러 객체의 모든 속성을 순회하여 추가 정보 수집
+        try {
+          const errorObj = error as unknown as Record<string, unknown>;
+          Object.keys(errorObj).forEach((key) => {
+            if (!errorDetails[key]) {
+              errorDetails[key] = errorObj[key];
+            }
           });
+        } catch (e) {
+          console.warn("Error parsing error object:", e);
         }
+
+        console.error("❌ Signup Error (상세):", errorDetails);
+        try {
+          console.error("❌ Signup Error (전체 객체):", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        } catch (e) {
+          console.error("❌ Signup Error (직렬화 실패):", error);
+        }
+
+        // 500 에러인 경우 특별 처리
+        if (error.status === 500) {
+          console.error("🚨 500 Internal Server Error - Supabase 서버 오류");
+          console.error("가능한 원인:");
+          console.error("1. 데이터베이스 트리거 오류 (handle_new_user 함수)");
+          console.error("2. RLS 정책 문제");
+          console.error("3. 이메일 발송 설정 문제");
+          console.error("4. Supabase 대시보드 → Logs에서 상세 에러 확인 필요");
+        }
+
+        // // 이메일 발송 실패 에러인지 확인
+        // if (
+        //   error.message?.includes("Error sending confirmation email") ||
+        //   error.message?.includes("sending confirmation email") ||
+        //   error.message?.toLowerCase().includes("email")
+        // ) {
+        //   const userId = authData?.user ? (authData.user as { id: string }).id : null;
+        //   console.error("📧 이메일 발송 실패 감지:", {
+        //     errorMessage: error.message,
+        //     errorStatus: error.status,
+        //     userCreated: !!authData?.user,
+        //     userId: userId,
+        //     email: data.email,
+        //   });
+        // }
 
         setErrorMessage(getErrorMessage(error));
         return;
@@ -146,29 +167,35 @@ export default function SignupPage() {
         console.log("✅ 회원가입 성공:", {
           userId: authData.user.id,
           email: authData.user.email,
-          emailConfirmed: authData.user.email_confirmed_at,
-          confirmationSent: authData.user.confirmation_sent_at,
+          // emailConfirmed: authData.user.email_confirmed_at,
+          // confirmationSent: authData.user.confirmation_sent_at,
           hasSession: !!authData.session,
         });
 
-        // 이메일 확인이 필요한 경우
-        if (!authData.session) {
-          if (authData.user.confirmation_sent_at) {
-            console.log("📧 이메일 인증 메일 발송됨:", authData.user.confirmation_sent_at);
-          } else {
-            console.warn("⚠️ 이메일 인증 메일이 발송되지 않음 (confirmation_sent_at이 null)");
-          }
-          setSuccessMessage(
-            "회원가입이 완료되었습니다. 이메일을 확인하여 계정을 활성화해주세요."
-          );
-        } else {
-          // 이메일 확인이 필요 없는 경우 (설정에 따라)
-          console.log("✅ 이메일 인증 없이 로그인됨");
-          setSuccessMessage("회원가입이 완료되었습니다. 메인 페이지로 이동합니다.");
-          setTimeout(() => {
-            router.push("/");
-          }, 2000);
-        }
+        // // 이메일 확인이 필요한 경우
+        // if (!authData.session) {
+        //   if (authData.user.confirmation_sent_at) {
+        //     console.log("📧 이메일 인증 메일 발송됨:", authData.user.confirmation_sent_at);
+        //   } else {
+        //     console.warn("⚠️ 이메일 인증 메일이 발송되지 않음 (confirmation_sent_at이 null)");
+        //   }
+        //   setSuccessMessage(
+        //     "회원가입이 완료되었습니다. 이메일을 확인하여 계정을 활성화해주세요."
+        //   );
+        // } else {
+        //   // 이메일 확인이 필요 없는 경우 (설정에 따라)
+        //   console.log("✅ 이메일 인증 없이 로그인됨");
+        //   setSuccessMessage("회원가입이 완료되었습니다. 메인 페이지로 이동합니다.");
+        //   setTimeout(() => {
+        //     router.push("/");
+        //   }, 2000);
+        // }
+
+        // 이메일 인증 없이 바로 로그인 처리
+        setSuccessMessage("회원가입이 완료되었습니다. 메인 페이지로 이동합니다.");
+        setTimeout(() => {
+          router.push("/");
+        }, 2000);
       } else {
         console.error("❌ 사용자 데이터가 반환되지 않음");
       }
