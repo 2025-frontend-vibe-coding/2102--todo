@@ -83,9 +83,9 @@ export default function HomePage() {
         } else {
           setUser({
             id: authUser.id,
-            email: profile.email || authUser.email || "",
-            name: profile.name || authUser.user_metadata?.name || authUser.email?.split("@")[0] || "사용자",
-            avatar_url: profile.avatar_url || null,
+            email: profile?.email ?? authUser.email ?? "",
+            name: profile?.name ?? authUser.user_metadata?.name ?? authUser.email?.split("@")[0] ?? "사용자",
+            avatar_url: profile?.avatar_url ?? null,
           });
         }
       } catch (error) {
