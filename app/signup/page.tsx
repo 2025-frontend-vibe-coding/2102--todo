@@ -128,7 +128,7 @@ export default function SignupPage() {
         console.error("❌ Signup Error (상세):", errorDetails);
         try {
           console.error("❌ Signup Error (전체 객체):", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
-        } catch (e) {
+        } catch {
           console.error("❌ Signup Error (직렬화 실패):", error);
         }
 
@@ -365,11 +365,10 @@ export default function SignupPage() {
         </Card>
 
         {/* 추가 정보 */}
-        <p className="text-center text-xs text-muted-foreground">
+        {/* <p className="text-center text-xs text-muted-foreground">
           회원가입 시 이메일 인증 메일이 발송됩니다. 이메일을 확인해주세요.
-        </p>
+        </p> */}
       </div>
     </div>
   );
 }
-

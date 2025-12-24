@@ -12,14 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,7 +54,7 @@ export default function HomePage() {
     const supabase = createClient();
     let isMounted = true;
 
-    const fetchUserProfile = async (authUser: any) => {
+    const fetchUserProfile = async (authUser: { id: string; email?: string; user_metadata?: { name?: string } }) => {
       try {
         // 사용자 프로필 정보 가져오기 (maybeSingle로 변경하여 row가 없어도 에러 안 남)
         const { data: profile, error: profileError } = await supabase
@@ -144,13 +137,13 @@ export default function HomePage() {
           id: session.user.id,
         });
         setIsLoadingUser(false);
-        
+
         // 프로필 정보는 백그라운드에서 가져오기 (있으면 업데이트)
         fetchUserProfile(session.user);
-        
+
         // 할 일 목록 가져오기
         fetchTodos(session.user.id);
-        
+
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
           router.refresh();
         }
@@ -162,6 +155,7 @@ export default function HomePage() {
       subscription.unsubscribe();
       window.removeEventListener("focus", handleFocus);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   // 할 일 목록 가져오기
@@ -173,18 +167,18 @@ export default function HomePage() {
 
       // 현재 사용자 확인 (세션 확인)
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (sessionError) {
         console.error("Session error in fetchTodos:", sessionError);
         throw new Error("세션을 확인할 수 없습니다.");
       }
-      
+
       if (!session || !session.user) {
         throw new Error("로그인 세션이 없습니다. 다시 로그인해주세요.");
       }
-      
+
       const currentUserId = session.user.id;
-      
+
       if (currentUserId !== userId) {
         console.warn("User ID mismatch in fetchTodos:", { sessionUserId: currentUserId, paramUserId: userId });
         // 세션의 user.id를 우선 사용
@@ -226,12 +220,12 @@ export default function HomePage() {
       }
 
       setTodos((data as Todo[]) || []);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error fetching todos:", error);
-      const errorMessage = error?.message || String(error);
-      const errorCode = error?.code;
-      const status = error?.status;
-      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorCode = error && typeof error === 'object' && 'code' in error ? String(error.code) : undefined;
+      const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : undefined;
+
       if (status === 406 || errorCode === "PGRST301" || errorCode === "PGRST116" || errorMessage?.includes("JWT")) {
         setErrorMessage("인증이 만료되었거나 서버 설정에 문제가 있습니다. 다시 로그인해주세요.");
         setTimeout(() => {
@@ -315,13 +309,22 @@ export default function HomePage() {
         return;
       }
 
-      const insertData: any = {
+      const insertData: {
+        user_id: string;
+        title: string;
+        description: string | null;
+        priority: Priority;
+        category: string | null;
+        completed: boolean;
+        due_date: string | null;
+      } = {
         user_id: user.id,
         title: data.title.trim(),
         description: data.description?.trim() || null,
         priority: data.priority || "medium",
         category: data.category && data.category !== "none" ? data.category : null,
         completed: false,
+        due_date: null,
       };
 
       // due_date가 있으면 ISO 형식으로 변환
@@ -336,8 +339,6 @@ export default function HomePage() {
         } catch {
           insertData.due_date = null;
         }
-      } else {
-        insertData.due_date = null;
       }
 
       // 현재 사용자 확인 (세션 확인)
@@ -421,7 +422,7 @@ export default function HomePage() {
       await fetchTodos(session.user.id);
       setIsFormOpen(false);
       setEditingTodo(undefined);
-    } catch (error: any) {
+    } catch (error) {
       // 예상치 못한 에러 처리
       let errorMessage = "할 일 추가 중 오류가 발생했습니다.";
       
@@ -443,8 +444,8 @@ export default function HomePage() {
           if (errorStr && errorStr !== "{}") {
             errorMessage = `오류: ${errorStr}`;
           }
-        } catch (e) {
-          console.error("Failed to stringify error:", e);
+        } catch {
+          console.error("Failed to stringify error");
           console.error("Original error:", error);
         }
       }
@@ -475,11 +476,18 @@ export default function HomePage() {
       const currentUserId = session.user.id;
 
       // 업데이트 데이터 준비
-      const updateData: any = {
+      const updateData: {
+        title: string;
+        description: string | null;
+        priority: Priority;
+        category: string | null;
+        due_date: string | null;
+      } = {
         title: data.title.trim(),
         description: data.description?.trim() || null,
         priority: data.priority || "medium",
         category: data.category && data.category !== "none" ? data.category : null,
+        due_date: null,
       };
 
       // due_date 처리
@@ -494,8 +502,6 @@ export default function HomePage() {
         } catch {
           updateData.due_date = null;
         }
-      } else {
-        updateData.due_date = null;
       }
 
       console.log("Updating todo:", { id: editingTodo.id, data: updateData, userId: currentUserId });
@@ -538,9 +544,9 @@ export default function HomePage() {
       await fetchTodos(currentUserId);
       setEditingTodo(undefined);
       setIsFormOpen(false);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error updating todo:", error);
-      const errorMessage = error?.message || String(error) || "할 일 수정 중 오류가 발생했습니다.";
+      const errorMessage = error instanceof Error ? error.message : String(error) || "할 일 수정 중 오류가 발생했습니다.";
       setErrorMessage(errorMessage);
     }
   };
@@ -634,9 +640,9 @@ export default function HomePage() {
         next.delete(id);
         return next;
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error deleting todo:", error);
-      const errorMessage = error?.message || String(error) || "할 일 삭제 중 오류가 발생했습니다.";
+      const errorMessage = error instanceof Error ? error.message : String(error) || "할 일 삭제 중 오류가 발생했습니다.";
       setErrorMessage(errorMessage);
       
       // 애니메이션 상태 제거
@@ -707,9 +713,9 @@ export default function HomePage() {
 
       // 목록 새로고침
       await fetchTodos(user.id);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error toggling todo:", error);
-      const errorMessage = error?.message || String(error) || "상태 변경 중 오류가 발생했습니다.";
+      const errorMessage = error instanceof Error ? error.message : String(error) || "상태 변경 중 오류가 발생했습니다.";
       setErrorMessage(errorMessage);
     }
   };
@@ -785,9 +791,9 @@ export default function HomePage() {
       }
 
       setAnalysisData(responseData.data);
-    } catch (error: any) {
+    } catch (error) {
       console.error("AI analyze error:", error);
-      setAnalysisError(error.message || "AI 분석 중 오류가 발생했습니다.");
+      setAnalysisError(error instanceof Error ? error.message : "AI 분석 중 오류가 발생했습니다.");
       setAnalysisData(null);
     } finally {
       setIsAnalyzing(false);
@@ -851,7 +857,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center size-8 rounded-lg bg-primary/10">
